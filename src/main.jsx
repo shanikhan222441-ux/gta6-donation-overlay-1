@@ -74,8 +74,8 @@ function Overlay() {
         <div className="percent-pill">{progress.toFixed(0)}%</div>
         <div className="progress-track">
           <div className="progress-fill" style={{ width: `${progress}%` }}>
-            <div className="chevrons"><span>››››››››››››››››››››››››››››</span><span>››››››››››››››››››››››››››››</span></div>
             <div className="fill-gloss" />
+            <div className="fill-shimmer" />
           </div>
           <div className="bar-spark spark-a" /><div className="bar-spark spark-b" />
         </div>
