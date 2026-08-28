@@ -74,7 +74,7 @@ function Overlay() {
         <div className="percent-pill">{progress.toFixed(0)}%</div>
         <div className="progress-track">
           <div className="progress-fill" style={{ width: `${progress}%` }}>
-            <div className="chevrons">››››››››››››››››››</div>
+            <div className="chevrons"><span>››››››››››››››››››››››››››››</span><span>››››››››››››››››››››››››››››</span></div>
             <div className="fill-gloss" />
           </div>
           <div className="bar-spark spark-a" /><div className="bar-spark spark-b" />
@@ -89,14 +89,21 @@ function Overlay() {
       <div className="hud-line"><span /><b /><span /></div>
     </div>
 
-    <div className="badges">
-      <div className="badge"><div className="badge-icon">ϟ</div><div><strong>LIVE UPDATES</strong><small>REAL-TIME DONATIONS</small></div></div>
-      <div className="badge"><div className="badge-icon">♡</div><div><strong>100% SECURE</strong><small>SAFE &amp; TRUSTED</small></div></div>
-      <div className="badge"><div className="badge-icon">◷</div><div><strong>REAL-TIME</strong><small>INSTANT UPDATE</small></div></div>
-      <div className="badge"><div className="badge-icon">♥</div><div><strong>THANK YOU!</strong><small>YOUR SUPPORT MATTERS</small></div></div>
+    <div className="donation-dock">
+      {flash ? (
+        <div className="dock-card">
+          <div className="dock-scan" />
+          <div className="dock-label"><span className="dock-dot" /> LIVE DONATION</div>
+          <div className="dock-content">
+            <div className="dock-name">{flash.name}</div>
+            <div className="dock-amount">+ {money(flash.amount, currency)}</div>
+          </div>
+          <div className="dock-thanks">THANK YOU FOR THE SUPPORT <span>♥</span></div>
+        </div>
+      ) : (
+        <div className="dock-idle">WAITING FOR THE NEXT DONATION <span>♥</span></div>
+      )}
     </div>
-
-    <div className="support-line"><span>♡</span> THANK YOU FOR YOUR SUPPORT! <span>♡</span></div>
   </div>;
 }
 
