@@ -14,7 +14,6 @@ function Overlay() {
   const [settings, setSettings] = useState(null);
   const [queue, setQueue] = useState([]);
   const [displayTotal, setDisplayTotal] = useState(0);
-  const [pendingTotal, setPendingTotal] = useState(0);
   const [activeDonation, setActiveDonation] = useState(null);
   const [isAnimatingBar, setIsAnimatingBar] = useState(false);
 
@@ -26,9 +25,7 @@ function Overlay() {
       .maybeSingle();
     if (data) {
       setSettings(data);
-      const serverTotal = Number(data.total_amount || 0);
-      setDisplayTotal(serverTotal);
-      setPendingTotal(serverTotal);
+      setDisplayTotal(Number(data.total_amount || 0));
     }
   };
 
@@ -43,7 +40,9 @@ function Overlay() {
         (payload) => {
           if (payload.new) {
             setSettings(payload.new);
-            setPendingTotal(Number(payload.new.total_amount || 0));
+            setDisplayTotal(Number(payload.new.total_amount || 0));
+            setIsAnimatingBar(true);
+            setTimeout(() => setIsAnimatingBar(false), 1300);
           }
         }
       )
@@ -68,7 +67,6 @@ function Overlay() {
 
     const t = setTimeout(() => {
       setActiveDonation(null);
-      setDisplayTotal(pendingTotal);
       setIsAnimatingBar(true);
       setTimeout(() => setIsAnimatingBar(false), 1300);
     }, 4200);
