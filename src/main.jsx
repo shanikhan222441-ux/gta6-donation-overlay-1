@@ -33,24 +33,70 @@ function Overlay() {
         setSettings(next);
         if (next.current_amount > 0 && next.current_name) {
           setFlash({ name: next.current_name, amount: next.current_amount, id: next.last_donation_id });
-          setTimeout(() => setFlash(null), 4200);
+          setTimeout(() => setFlash(null), 5200);
         }
       }).subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
-  if (loading || !settings) return <div className="overlay-loading">Loading...</div>;
-  const progress = Math.min(100, Math.max(0, (Number(settings.total_amount) / Math.max(1, Number(settings.target_amount))) * 100));
+  if (loading || !settings) return <div className="overlay-loading"><div className="loading-ring" /></div>;
+
+  const total = Number(settings.total_amount || 0);
+  const target = Math.max(1, Number(settings.target_amount || 1));
+  const progress = Math.min(100, Math.max(0, (total / target) * 100));
+  const left = Math.max(0, target - total);
+  const currency = settings.currency || 'Rs.';
 
   return <div className="overlay-page">
-    {flash && <div className="donation-alert"><div className="alert-kicker">NEW DONATION</div><div className="alert-name">{flash.name}</div><div className="alert-amount">+ {money(flash.amount, settings.currency)}</div><div className="alert-thanks">THANK YOU ❤️</div></div>}
-    <div className="goal-widget">
-      <div className="glow" />
-      <div className="goal-title">{settings.title || 'DONATION GOAL'}</div>
-      <div className="goal-total">{money(settings.total_amount, settings.currency)} <span>/ {money(settings.target_amount, settings.currency)}</span></div>
-      <div className="bar"><div className="bar-fill" style={{ width: `${progress}%` }} /></div>
-      <div className="goal-footer"><span>{progress.toFixed(0)}%</span><span>ROAD TO {money(settings.target_amount, settings.currency)}</span></div>
+    <div className="ambient ambient-one" />
+    <div className="ambient ambient-two" />
+    <div className="scanlines" />
+
+    {flash && <div className="donation-alert">
+      <div className="alert-glitch">✦ LIVE DONATION ✦</div>
+      <div className="alert-name">{flash.name}</div>
+      <div className="alert-amount">+ {money(flash.amount, currency)}</div>
+      <div className="alert-thanks">THANK YOU FOR THE SUPPORT!</div>
+    </div>}
+
+    <div className="gta-panel">
+      <div className="panel-noise" />
+      <div className="corner corner-tl" /><div className="corner corner-tr" />
+      <div className="corner corner-bl" /><div className="corner corner-br" />
+      <div className="energy energy-1" /><div className="energy energy-2" /><div className="energy energy-3" />
+
+      <div className="panel-head">
+        <div className="headline">DONATION FOR <span>GTA <b>6</b></span></div>
+        <div className="goal-head"><span>GOAL:</span> <strong>{money(target, currency)}</strong><i>»»</i></div>
+      </div>
+
+      <div className="progress-row">
+        <div className="percent-pill">{progress.toFixed(0)}%</div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${progress}%` }}>
+            <div className="chevrons">››››››››››››››››››</div>
+            <div className="fill-gloss" />
+          </div>
+          <div className="bar-spark spark-a" /><div className="bar-spark spark-b" />
+        </div>
+      </div>
+
+      <div className="panel-stats">
+        <div className="raised"><span className="coin">₹</span><strong>{money(total, currency)}</strong><em>RAISED</em></div>
+        <div className="left"><strong>{money(left, currency)}</strong><em>LEFT</em></div>
+      </div>
+
+      <div className="hud-line"><span /><b /><span /></div>
     </div>
+
+    <div className="badges">
+      <div className="badge"><div className="badge-icon">ϟ</div><div><strong>LIVE UPDATES</strong><small>REAL-TIME DONATIONS</small></div></div>
+      <div className="badge"><div className="badge-icon">♡</div><div><strong>100% SECURE</strong><small>SAFE &amp; TRUSTED</small></div></div>
+      <div className="badge"><div className="badge-icon">◷</div><div><strong>REAL-TIME</strong><small>INSTANT UPDATE</small></div></div>
+      <div className="badge"><div className="badge-icon">♥</div><div><strong>THANK YOU!</strong><small>YOUR SUPPORT MATTERS</small></div></div>
+    </div>
+
+    <div className="support-line"><span>♡</span> THANK YOU FOR YOUR SUPPORT! <span>♡</span></div>
   </div>;
 }
 
