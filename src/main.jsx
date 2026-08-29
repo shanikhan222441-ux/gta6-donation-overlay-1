@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import './styles.css';
@@ -9,6 +9,10 @@ const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPAB
 
 const money = (value, currency = 'Rs.') => `${currency} ${Number(value || 0).toLocaleString('en-US')}`;
 
+// How long the donor's name/amount stays on screen inside the box before it
+// reverts back to the goal/progress view.
+const DONATION_DISPLAY_MS = 5500;
+
 function ConfigMissing() {
   return <div className="config-screen"><div className="config-card"><div className="logo">V-DONATE</div><h1>Supabase config missing</h1><p>Add <b>VITE_SUPABASE_URL</b> and <b>VITE_SUPABASE_ANON_KEY</b> in Vercel Environment Variables, then redeploy.</p></div></div>;
 }
@@ -17,6 +21,8 @@ function Overlay() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState(null);
+  const [mode, setMode] = useState('progress'); // 'progress' | 'donation'
+  const timerRef = useRef(null);
 
   const load = async () => {
     const { data, error } = await supabase.from('donation_settings').select('*').eq('id', 1).single();
@@ -32,11 +38,16 @@ function Overlay() {
         const next = payload.new;
         setSettings(next);
         if (next.current_amount > 0 && next.current_name) {
+          if (timerRef.current) clearTimeout(timerRef.current);
           setFlash({ name: next.current_name, amount: next.current_amount, id: next.last_donation_id });
-          setTimeout(() => setFlash(null), 5200);
+          setMode('donation');
+          timerRef.current = setTimeout(() => setMode('progress'), DONATION_DISPLAY_MS);
         }
       }).subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   if (loading || !settings) return <div className="overlay-loading"><div className="loading-ring" /></div>;
@@ -46,63 +57,45 @@ function Overlay() {
   const progress = Math.min(100, Math.max(0, (total / target) * 100));
   const left = Math.max(0, target - total);
   const currency = settings.currency || 'Rs.';
+  const showDonation = mode === 'donation' && flash;
 
   return <div className="overlay-page">
-    <div className="ambient ambient-one" />
-    <div className="ambient ambient-two" />
-    <div className="scanlines" />
+    <div className="vip-stage">
+      {/* key changes whenever we switch between progress <-> donation, which
+          remounts the box and replays its entrance/seal/sheen animation once
+          — it never loops on its own. */}
+      <div className="vip-card" key={showDonation ? `d-${flash.id}` : 'p'}>
+        <div className="vip-card-inner">
+          <div className="vip-sheen" />
+          <div className="vip-corner tl" /><div className="vip-corner tr" />
+          <div className="vip-corner bl" /><div className="vip-corner br" />
+          <div className="vip-seal">♛</div>
 
-    {flash && <div className="donation-alert">
-      <div className="alert-glitch">✦ LIVE DONATION ✦</div>
-      <div className="alert-name">{flash.name}</div>
-      <div className="alert-amount">+ {money(flash.amount, currency)}</div>
-      <div className="alert-thanks">THANK YOU FOR THE SUPPORT!</div>
-    </div>}
-
-    <div className="gta-panel">
-      <div className="panel-noise" />
-      <div className="corner corner-tl" /><div className="corner corner-tr" />
-      <div className="corner corner-bl" /><div className="corner corner-br" />
-      <div className="energy energy-1" /><div className="energy energy-2" /><div className="energy energy-3" />
-
-      <div className="panel-head">
-        <div className="headline">DONATION FOR <span>GTA <b>6</b></span></div>
-        <div className="goal-head"><span>GOAL:</span> <strong>{money(target, currency)}</strong><i>»»</i></div>
-      </div>
-
-      <div className="progress-row">
-        <div className="percent-pill">{progress.toFixed(0)}%</div>
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${progress}%` }}>
-            <div className="fill-gloss" />
-            <div className="fill-shimmer" />
+          <div className="vip-body">
+            {showDonation ? (
+              <div className="vip-donation">
+                <div className="vip-donation-tag">NEW DONATION</div>
+                <div className="vip-donation-name">{flash.name}</div>
+                <div className="vip-donation-amount">+ {money(flash.amount, currency)}</div>
+                <div className="vip-donation-thanks">THANK YOU FOR THE SUPPORT ♥</div>
+              </div>
+            ) : (
+              <div className="vip-progress">
+                <div className="vip-title">{settings.title}</div>
+                <div className="vip-goal-row"><span>GOAL</span><strong>{money(target, currency)}</strong></div>
+                <div className="vip-track">
+                  <div className="vip-fill" style={{ width: `${progress}%` }} />
+                  <div className="vip-percent">{progress.toFixed(0)}%</div>
+                </div>
+                <div className="vip-stats">
+                  <div><strong>{money(total, currency)}</strong><em>RAISED</em></div>
+                  <div><strong>{money(left, currency)}</strong><em>REMAINING</em></div>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="bar-spark spark-a" /><div className="bar-spark spark-b" />
         </div>
       </div>
-
-      <div className="panel-stats">
-        <div className="raised"><span className="coin">₹</span><strong>{money(total, currency)}</strong><em>RAISED</em></div>
-        <div className="left"><strong>{money(left, currency)}</strong><em>LEFT</em></div>
-      </div>
-
-      <div className="hud-line"><span /><b /><span /></div>
-    </div>
-
-    <div className="donation-dock">
-      {flash ? (
-        <div className="dock-card">
-          <div className="dock-scan" />
-          <div className="dock-label"><span className="dock-dot" /> LIVE DONATION</div>
-          <div className="dock-content">
-            <div className="dock-name">{flash.name}</div>
-            <div className="dock-amount">+ {money(flash.amount, currency)}</div>
-          </div>
-          <div className="dock-thanks">THANK YOU FOR THE SUPPORT <span>♥</span></div>
-        </div>
-      ) : (
-        <div className="dock-idle">WAITING FOR THE NEXT DONATION <span>♥</span></div>
-      )}
     </div>
   </div>;
 }
