@@ -7,26 +7,46 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-const money = (value, currency = 'Rs.') => `${currency} ${Number(value || 0).toLocaleString('en-US')}`;
+const money = (value, currency = 'Rs.') => `${currency} ${Math.round(Number(value || 0)).toLocaleString('en-US')}`;
 
-// How long the donor's name/amount stays inside the box before it reverts
-// back to the goal/progress view.
-const DONATION_DISPLAY_MS = 5500;
+// Timing for the donation sequence: slide in -> hold -> slide out -> count up.
+const HOLD_MS = 3200;
+const COUNT_MS = 1300;
 
 function ConfigMissing() {
   return <div className="config-screen"><div className="config-card"><div className="logo">V-DONATE</div><h1>Supabase config missing</h1><p>Add <b>VITE_SUPABASE_URL</b> and <b>VITE_SUPABASE_ANON_KEY</b> in Vercel Environment Variables, then redeploy.</p></div></div>;
 }
 
+// Eases a number from `from` to `to` over `duration` ms, calling onUpdate every
+// animation frame and onDone once it settles exactly on `to`.
+function animateNumber(from, to, duration, onUpdate, onDone) {
+  const start = performance.now();
+  const delta = to - from;
+  let raf;
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    onUpdate(from + delta * eased);
+    if (t < 1) raf = requestAnimationFrame(tick);
+    else onDone && onDone();
+  };
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}
+
 function Overlay() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [displayTotal, setDisplayTotal] = useState(0);
   const [flash, setFlash] = useState(null);
-  const [mode, setMode] = useState('progress'); // 'progress' | 'donation'
-  const timerRef = useRef(null);
+  // phase: 'idle' -> 'enter' -> 'hold' -> 'exit' -> 'counting' -> 'idle'
+  const [phase, setPhase] = useState('idle');
+  const holdTimerRef = useRef(null);
+  const cancelCountRef = useRef(null);
 
   const load = async () => {
     const { data, error } = await supabase.from('donation_settings').select('*').eq('id', 1).single();
-    if (!error) setSettings(data);
+    if (!error) { setSettings(data); setDisplayTotal(Number(data.total_amount || 0)); }
     setLoading(false);
   };
 
@@ -36,64 +56,83 @@ function Overlay() {
       .channel('donation-settings')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'donation_settings', filter: 'id=eq.1' }, (payload) => {
         const next = payload.new;
+        const isDonationEvent = Number(next.current_amount) > 0 && !!next.current_name;
         setSettings(next);
-        if (next.current_amount > 0 && next.current_name) {
-          if (timerRef.current) clearTimeout(timerRef.current);
-          setFlash({ name: next.current_name, amount: next.current_amount, id: next.last_donation_id });
-          setMode('donation');
-          timerRef.current = setTimeout(() => setMode('progress'), DONATION_DISPLAY_MS);
+        if (isDonationEvent) {
+          if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+          if (cancelCountRef.current) cancelCountRef.current();
+          setFlash({ name: next.current_name, amount: Number(next.current_amount), id: next.last_donation_id, newTotal: Number(next.total_amount) });
+          setPhase('enter');
+        } else {
+          // Admin correction (set total / reset) — jump straight to the new value.
+          setDisplayTotal(Number(next.total_amount || 0));
         }
       }).subscribe();
     return () => {
       supabase.removeChannel(channel);
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+      if (cancelCountRef.current) cancelCountRef.current();
     };
   }, []);
 
+  const handleEnterEnd = () => {
+    if (phase !== 'enter') return;
+    setPhase('hold');
+    holdTimerRef.current = setTimeout(() => setPhase('exit'), HOLD_MS);
+  };
+
+  const handleExitEnd = () => {
+    if (phase !== 'exit' || !flash) return;
+    setPhase('counting');
+    const from = displayTotal;
+    const to = flash.newTotal;
+    cancelCountRef.current = animateNumber(from, to, COUNT_MS, (v) => setDisplayTotal(v), () => setPhase('idle'));
+  };
+
   if (loading || !settings) return <div className="overlay-loading"><div className="loading-ring" /></div>;
 
-  const total = Number(settings.total_amount || 0);
   const target = Math.max(1, Number(settings.target_amount || 1));
-  const progress = Math.min(100, Math.max(0, (total / target) * 100));
-  const left = Math.max(0, target - total);
+  const progress = Math.min(100, Math.max(0, (displayTotal / target) * 100));
+  const left = Math.max(0, target - displayTotal);
   const currency = settings.currency || 'Rs.';
-  const showDonation = mode === 'donation' && flash;
+  const showFlashCard = flash && (phase === 'enter' || phase === 'hold' || phase === 'exit');
+  const isCounting = phase === 'counting';
 
   return <div className="overlay-page">
     <div className="corner-stage">
-      {/* key changes when switching progress <-> donation, remounting the box
-          so the reveal animation plays once per event — it never loops on
-          its own; only the ambient GTA glow/energy effects keep moving. */}
-      <div className="corner-panel" key={showDonation ? `d-${flash.id}` : 'p'}>
-        <div className="panel-noise" />
+      <div className="corner-panel">
         <div className="corner-mark tl" /><div className="corner-mark tr" />
         <div className="corner-mark bl" /><div className="corner-mark br" />
-        <div className="energy-line e1" /><div className="energy-line e2" />
 
-        <div className="cp-body">
-          {showDonation ? (
-            <div className="cp-donation">
-              <div className="cp-live"><span className="live-dot" /> LIVE DONATION</div>
-              <div className="cp-name">{flash.name}</div>
-              <div className="cp-amount">+ {money(flash.amount, currency)}</div>
-              <div className="cp-thanks">THANK YOU FOR THE SUPPORT<span>♥</span></div>
-            </div>
-          ) : (
+        <div className="cp-viewport">
+          {!showFlashCard && (
             <div className="cp-progress">
               <div className="cp-head">
                 <span className="cp-title">{settings.title}</span>
                 <span className="cp-percent">{progress.toFixed(0)}%</span>
               </div>
               <div className="cp-track">
-                <div className="cp-fill" style={{ width: `${progress}%` }}>
+                <div className={`cp-fill${isCounting ? ' is-live' : ''}`} style={{ width: `${progress}%` }}>
                   <div className="cp-gloss" />
                 </div>
               </div>
               <div className="cp-stats">
-                <span><b>{money(total, currency)}</b>raised</span>
+                <span><b className={isCounting ? 'ticking' : ''}>{money(displayTotal, currency)}</b>raised</span>
                 <span><b>{money(left, currency)}</b>left</span>
               </div>
-              <div className="cp-hud"><span /><b /><span /></div>
+            </div>
+          )}
+
+          {flash && (phase === 'enter' || phase === 'hold' || phase === 'exit') && (
+            <div
+              key={flash.id}
+              className={`cp-donation ${phase === 'exit' ? 'slide-exit' : 'slide-enter'}`}
+              onAnimationEnd={phase === 'exit' ? handleExitEnd : handleEnterEnd}
+            >
+              <div className="cp-live"><span className="live-dot" /> LIVE DONATION</div>
+              <div className="cp-name">{flash.name}</div>
+              <div className="cp-amount">+ {money(flash.amount, currency)}</div>
+              <div className="cp-thanks">THANK YOU FOR THE SUPPORT<span>♥</span></div>
             </div>
           )}
         </div>
