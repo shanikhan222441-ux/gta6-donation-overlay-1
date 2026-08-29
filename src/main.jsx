@@ -9,8 +9,8 @@ const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPAB
 
 const money = (value, currency = 'Rs.') => `${currency} ${Number(value || 0).toLocaleString('en-US')}`;
 
-// How long the donor's name/amount stays on screen inside the box before it
-// reverts back to the goal/progress view.
+// How long the donor's name/amount stays inside the box before it reverts
+// back to the goal/progress view.
 const DONATION_DISPLAY_MS = 5500;
 
 function ConfigMissing() {
@@ -60,40 +60,42 @@ function Overlay() {
   const showDonation = mode === 'donation' && flash;
 
   return <div className="overlay-page">
-    <div className="vip-stage">
-      {/* key changes whenever we switch between progress <-> donation, which
-          remounts the box and replays its entrance/seal/sheen animation once
-          — it never loops on its own. */}
-      <div className="vip-card" key={showDonation ? `d-${flash.id}` : 'p'}>
-        <div className="vip-card-inner">
-          <div className="vip-sheen" />
-          <div className="vip-corner tl" /><div className="vip-corner tr" />
-          <div className="vip-corner bl" /><div className="vip-corner br" />
-          <div className="vip-seal">♛</div>
+    <div className="corner-stage">
+      {/* key changes when switching progress <-> donation, remounting the box
+          so the reveal animation plays once per event — it never loops on
+          its own; only the ambient GTA glow/energy effects keep moving. */}
+      <div className="corner-panel" key={showDonation ? `d-${flash.id}` : 'p'}>
+        <div className="panel-noise" />
+        <div className="corner-mark tl" /><div className="corner-mark tr" />
+        <div className="corner-mark bl" /><div className="corner-mark br" />
+        <div className="energy-line e1" /><div className="energy-line e2" />
 
-          <div className="vip-body">
-            {showDonation ? (
-              <div className="vip-donation">
-                <div className="vip-donation-tag">NEW DONATION</div>
-                <div className="vip-donation-name">{flash.name}</div>
-                <div className="vip-donation-amount">+ {money(flash.amount, currency)}</div>
-                <div className="vip-donation-thanks">THANK YOU FOR THE SUPPORT ♥</div>
+        <div className="cp-body">
+          {showDonation ? (
+            <div className="cp-donation">
+              <div className="cp-live"><span className="live-dot" /> LIVE DONATION</div>
+              <div className="cp-name">{flash.name}</div>
+              <div className="cp-amount">+ {money(flash.amount, currency)}</div>
+              <div className="cp-thanks">THANK YOU FOR THE SUPPORT<span>♥</span></div>
+            </div>
+          ) : (
+            <div className="cp-progress">
+              <div className="cp-head">
+                <span className="cp-title">{settings.title}</span>
+                <span className="cp-percent">{progress.toFixed(0)}%</span>
               </div>
-            ) : (
-              <div className="vip-progress">
-                <div className="vip-title">{settings.title}</div>
-                <div className="vip-goal-row"><span>GOAL</span><strong>{money(target, currency)}</strong></div>
-                <div className="vip-track">
-                  <div className="vip-fill" style={{ width: `${progress}%` }} />
-                  <div className="vip-percent">{progress.toFixed(0)}%</div>
-                </div>
-                <div className="vip-stats">
-                  <div><strong>{money(total, currency)}</strong><em>RAISED</em></div>
-                  <div><strong>{money(left, currency)}</strong><em>REMAINING</em></div>
+              <div className="cp-track">
+                <div className="cp-fill" style={{ width: `${progress}%` }}>
+                  <div className="cp-gloss" />
                 </div>
               </div>
-            )}
-          </div>
+              <div className="cp-stats">
+                <span><b>{money(total, currency)}</b>raised</span>
+                <span><b>{money(left, currency)}</b>left</span>
+              </div>
+              <div className="cp-hud"><span /><b /><span /></div>
+            </div>
+          )}
         </div>
       </div>
     </div>
